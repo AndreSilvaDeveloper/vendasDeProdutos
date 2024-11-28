@@ -1,54 +1,62 @@
 const apiUrl = 'http://localhost:3000/api/products';
+let authToken = '';
 
-// Função para carregar produtos da API e exibir na lista
+// Função para carregar produtos
 function loadProducts() {
-    fetch(apiUrl)
-        .then(response => response.json())
-        .then(products => {
-            const productList = document.getElementById('product-list');
-            productList.innerHTML = '';  // Limpa a lista
-
-            products.forEach(product => {
-                const li = document.createElement('li');
-                li.textContent = `${product.name} - R$ ${product.price}`;
-                productList.appendChild(li);
-            });
-        })
-        .catch(err => {
-            console.error('Erro ao carregar produtos:', err);
-        });
-}
-
-// Função para adicionar um novo produto
-document.getElementById('product-form').addEventListener('submit', function (e) {
-    e.preventDefault();
-
-    const name = document.getElementById('product-name').value;
-    const price = parseFloat(document.getElementById('product-price').value);
-
-    const newProduct = {
-        id: Date.now(),  // Gerando um ID único baseado no timestamp
-        name: name,
-        price: price
-    };
-
     fetch(apiUrl, {
-        method: 'POST',
         headers: {
-            'Content-Type': 'application/json'
+            'Authorization': `Bearer ${authToken}`,
         },
-        body: JSON.stringify(newProduct)
     })
     .then(response => response.json())
-    .then(product => {
-        loadProducts();  // Recarrega a lista de produtos
-        document.getElementById('product-name').value = '';  // Limpa o campo
-        document.getElementById('product-price').value = '';  // Limpa o campo
+    .then(products => {
+        const productList = document.getElementById('product-list');
+        productList.innerHTML = ''; 
+
+        products.forEach(product => {
+            const li = document.createElement('li');
+            li.textContent = `${product.name} - R$ ${product.price}`;
+            productList.appendChild(li);
+        });
     })
-    .catch(err => {
-        console.error('Erro ao adicionar produto:', err);
-    });
+    .catch(err => console.error('Erro ao carregar produtos:', err));
+}
+
+// Função para login
+document.getElementById('login-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const username = document.getElementById('login-username').value;
+    const password = document.getElementById('login-password').value;
+
+    fetch('http://localhost:3000/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.token) {
+            authToken = data.token;
+            loadProducts(); // Carregar produtos
+        }
+    })
+    .catch(err => console.error('Erro no login:', err));
 });
 
-// Carrega os produtos ao iniciar
-loadProducts();
+// Função para registrar
+document.getElementById('register-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const username = document.getElementById('register-username').value;
+    const password = document.getElementById('register-password').value;
+
+    fetch('http://localhost:3000/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+    })
+    .then(response => response.json())
+    .then(() => alert('Usuário registrado com sucesso!'))
+    .catch(err => console.error('Erro no registro:', err));
+});

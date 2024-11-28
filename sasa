@@ -1,9 +1,63 @@
+const mongoose = require('mongoose');
+
+const productSchema = new mongoose.Schema({
+    name: {
+        type: String,
+        required: true,
+    },
+    price: {
+        type: Number,
+        required: true,
+    },
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true,
+    }
+});
+
+const Product = mongoose.model('Product', productSchema);
+module.exports = Product;
+
+const mongoose = require('mongoose');
+
+const userSchema = new mongoose.Schema({
+    username: {
+        type: String,
+        required: true,
+        unique: true,
+    },
+    password: {
+        type: String,
+        required: true,
+    }
+});
+
+const User = mongoose.model('User', userSchema);
+module.exports = User;
+
+MONGO_URI=mongodb://localhost:27017/venda-produtos
+JWT_SECRET=secretdoJWT
+
 {
   "name": "backend",
   "version": "1.0.0",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
+    "": {
+      "name": "backend",
+      "version": "1.0.0",
+      "license": "ISC",
+      "dependencies": {
+        "bcryptjs": "^2.4.3",
+        "cors": "^2.8.5",
+        "dotenv": "^16.4.5",
+        "express": "^4.21.1",
+        "jsonwebtoken": "^9.0.2",
+        "mongoose": "^8.8.3"
+      }
+    },
     "node_modules/@mongodb-js/saslprep": {
       "version": "1.1.9",
       "resolved": "https://registry.npmjs.org/@mongodb-js/saslprep/-/saslprep-1.1.9.tgz",
@@ -1155,3 +1209,312 @@
     }
   }
 }
+
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.8.3"
+  }
+}
+
+[
+    {
+        "id": 1,
+        "name": "Produto A",
+        "price": 100
+    },
+    {
+        "id": 2,
+        "name": "Produto B",
+        "price": 200
+    }
+]
+
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const dotenv = require('dotenv');
+const Product = require('./models/Product');
+const User = require('./models/User');
+
+dotenv.config();  // Carregar variáveis de ambiente do arquivo .env
+
+const app = express();
+const port = 3000;
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// Conectar ao MongoDB
+mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+    .then(() => console.log('Conectado ao MongoDB'))
+    .catch((err) => console.log('Erro ao conectar ao MongoDB:', err));
+
+// Rota de registro de usuário
+app.post('/api/register', async (req, res) => {
+    const { username, password } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const user = new User({
+        username,
+        password: hashedPassword,
+    });
+
+    try {
+        await user.save();
+        res.status(201).send('Usuário registrado');
+    } catch (err) {
+        res.status(500).json({ message: 'Erro ao registrar usuário' });
+    }
+});
+
+// Rota de login de usuário (retorna um token)
+app.post('/api/login', async (req, res) => {
+    const { username, password } = req.body;
+
+    const user = await User.findOne({ username });
+    if (!user) {
+        return res.status(404).json({ message: 'Usuário não encontrado' });
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+        return res.status(401).json({ message: 'Senha incorreta' });
+    }
+
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    res.json({ token });
+});
+
+// Middleware de autenticação
+function authenticate(req, res, next) {
+    const token = req.headers['authorization']?.split(' ')[1];
+    if (!token) {
+        return res.status(403).json({ message: 'Token não fornecido' });
+    }
+
+    jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+        if (err) {
+            return res.status(403).json({ message: 'Token inválido' });
+        }
+        req.userId = decoded.userId;
+        next();
+    });
+}
+
+// CRUD de produtos
+
+// Criar um produto
+app.post('/api/products', authenticate, async (req, res) => {
+    const { name, price } = req.body;
+
+    const product = new Product({
+        name,
+        price,
+        userId: req.userId,
+    });
+
+    try {
+        await product.save();
+        res.status(201).json(product);
+    } catch (err) {
+        res.status(500).json({ message: 'Erro ao adicionar o produto' });
+    }
+});
+
+// Listar todos os produtos
+app.get('/api/products', authenticate, async (req, res) => {
+    try {
+        const products = await Product.find({ userId: req.userId });
+        res.json(products);
+    } catch (err) {
+        res.status(500).json({ message: 'Erro ao listar os produtos' });
+    }
+});
+
+// Editar produto
+app.put('/api/products/:id', authenticate, async (req, res) => {
+    const { id } = req.params;
+    const { name, price } = req.body;
+
+    try {
+        const product = await Product.findById(id);
+        if (!product) {
+            return res.status(404).json({ message: 'Produto não encontrado' });
+        }
+
+        if (product.userId.toString() !== req.userId) {
+            return res.status(403).json({ message: 'Não autorizado a editar este produto' });
+        }
+
+        product.name = name || product.name;
+        product.price = price || product.price;
+
+        await product.save();
+        res.json(product);
+    } catch (err) {
+        res.status(500).json({ message: 'Erro ao editar o produto' });
+    }
+});
+
+// Excluir produto
+app.delete('/api/products/:id', authenticate, async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const product = await Product.findById(id);
+        if (!product) {
+            return res.status(404).json({ message: 'Produto não encontrado' });
+        }
+
+        if (product.userId.toString() !== req.userId) {
+            return res.status(403).json({ message: 'Não autorizado a excluir este produto' });
+        }
+
+        await product.remove();
+        res.json({ message: 'Produto excluído com sucesso' });
+    } catch (err) {
+        res.status(500).json({ message: 'Erro ao excluir o produto' });
+    }
+});
+
+// Iniciar servidor
+app.listen(port, () => {
+    console.log(`Servidor rodando em http://localhost:${port}`);
+});
+
+const apiUrl = 'http://localhost:3000/api/products';
+let authToken = '';
+
+// Função para carregar produtos
+function loadProducts() {
+    fetch(apiUrl, {
+        headers: {
+            'Authorization': `Bearer ${authToken}`,
+        },
+    })
+    .then(response => response.json())
+    .then(products => {
+        const productList = document.getElementById('product-list');
+        productList.innerHTML = ''; 
+
+        products.forEach(product => {
+            const li = document.createElement('li');
+            li.textContent = `${product.name} - R$ ${product.price}`;
+            productList.appendChild(li);
+        });
+    })
+    .catch(err => console.error('Erro ao carregar produtos:', err));
+}
+
+// Função para login
+document.getElementById('login-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const username = document.getElementById('login-username').value;
+    const password = document.getElementById('login-password').value;
+
+    fetch('http://localhost:3000/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.token) {
+            authToken = data.token;
+            loadProducts(); // Carregar produtos
+        }
+    })
+    .catch(err => console.error('Erro no login:', err));
+});
+
+// Função para registrar
+document.getElementById('register-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const username = document.getElementById('register-username').value;
+    const password = document.getElementById('register-password').value;
+
+    fetch('http://localhost:3000/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+    })
+    .then(response => response.json())
+    .then(() => alert('Usuário registrado com sucesso!'))
+    .catch(err => console.error('Erro no registro:', err));
+});
+
+<!-- Adicionando Login e Registro -->
+<section>
+    <h2>Login</h2>
+    <form id="login-form">
+        <input type="text" id="login-username" placeholder="Username" required>
+        <input type="password" id="login-password" placeholder="Senha" required>
+        <button type="submit">Entrar</button>
+    </form>
+</section>
+
+<section>
+    <h2>Registrar</h2>
+    <form id="register-form">
+        <input type="text" id="register-username" placeholder="Username" required>
+        <input type="password" id="register-password" placeholder="Senha" required>
+        <button type="submit">Registrar</button>
+    </form>
+</section>
+
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f4f4f4;
+}
+
+header {
+    background-color: #333;
+    color: white;
+    text-align: center;
+    padding: 20px;
+}
+
+section {
+    margin: 20px;
+}
+
+form input, form button {
+    padding: 10px;
+    margin: 10px;
+    font-size: 16px;
+}
+
+button {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+}
+
+button:hover {
+    background-color: #45a049;
+}
+
+# vendasDeProdutos
+

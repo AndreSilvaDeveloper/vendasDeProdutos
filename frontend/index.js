@@ -1,30 +1,18 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Loja de Produtos</title>
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-    <header>
-        <h1>Loja de Produtos</h1>
-    </header>
+<!-- Adicionando Login e Registro -->
+<section>
+    <h2>Login</h2>
+    <form id="login-form">
+        <input type="text" id="login-username" placeholder="Username" required>
+        <input type="password" id="login-password" placeholder="Senha" required>
+        <button type="submit">Entrar</button>
+    </form>
+</section>
 
-    <section>
-        <h2>Produtos Disponíveis</h2>
-        <ul id="product-list"></ul>
-    </section>
-
-    <section>
-        <h2>Adicionar Produto</h2>
-        <form id="product-form">
-            <input type="text" id="product-name" placeholder="Nome do produto" required>
-            <input type="number" id="product-price" placeholder="Preço" required>
-            <button type="submit">Adicionar</button>
-        </form>
-    </section>
-
-    <script src="app.js"></script>
-</body>
-</html>
+<section>
+    <h2>Registrar</h2>
+    <form id="register-form">
+        <input type="text" id="register-username" placeholder="Username" required>
+        <input type="password" id="register-password" placeholder="Senha" required>
+        <button type="submit">Registrar</button>
+    </form>
+</section>
